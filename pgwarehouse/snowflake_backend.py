@@ -45,7 +45,8 @@ class SnowflakeBackend(Backend):
             'password': self.snowsql_pwd,
             'account': self.snowsql_account,
             'database': self.snowsql_database,
-            'schema': self.snowsql_schema
+            'schema': self.snowsql_schema,
+            'client_session_keep_alive': True
         }
         if self.snowsql_role:
             connection_config.update({'role': self.snowsql_role})
