@@ -1,7 +1,7 @@
 # Dev image: bundles the Postgres server binaries that testing.postgresql spawns, so the
 # test suite can run without a local Postgres install (see `make test-docker`). Also used
 # to build the package without a local uv install (see `make build-docker`).
-FROM python:3.12-slim-bookworm
+FROM python:3.14-slim-trixie
 COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /uvx /bin/
 
 # postgresql: server binaries (initdb, postgres) used by the tests
@@ -11,8 +11,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && ln -s /usr/lib/postgresql/*/bin/initdb /usr/lib/postgresql/*/bin/postgres /usr/local/bin/
 
-# Postgres refuses to run as root
-RUN useradd --create-home app
+# Postgres refuses to run as root. The home dir is made world-readable because
+# `make build-docker` runs as the host user (trixie defaults home dirs to 0700).
+RUN useradd --create-home app && chmod 755 /home/app
 USER app
 WORKDIR /home/app/pgwarehouse
 
