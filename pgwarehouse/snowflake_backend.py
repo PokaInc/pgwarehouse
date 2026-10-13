@@ -1,6 +1,7 @@
 from datetime import date
 import logging
 import os
+import re
 import shutil
 import subprocess
 
@@ -89,12 +90,19 @@ class SnowflakeBackend(Backend):
             return "DATETIME"
         if pgtype.startswith("timestamp"):
             return "TIMESTAMP"
+        # Before the "int" prefix check below: intervals are exported as text like '1 day 02:00:00'
+        if pgtype.startswith("interval"):
+            return "STRING"
         if pgtype.startswith("int") or pgtype.startswith("bigint"):
             return "BIGINT"
         if pgtype.startswith("smallint"):
             return "SMALLINT"
+        # A bare NUMERIC is NUMBER(38,0) in Snowflake, which would round fractional values
+        numeric = re.match(r"numeric\((\d+)(?:,(\d+))?\)", pgtype)
+        if numeric:
+            return f"NUMBER({numeric.group(1)},{numeric.group(2) or 0})"
         if pgtype.startswith("numeric") or pgtype.startswith("real") or pgtype.startswith("double"):
-            return "NUMERIC"
+            return "FLOAT"
         if pgtype == 'year':
             return "String"
         logger.warn(f"Warning unknown Postgres type {pgtype}, falling back to String")

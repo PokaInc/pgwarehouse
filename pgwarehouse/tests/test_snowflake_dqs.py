@@ -299,46 +299,41 @@ TYPE_MAPPING = {
     "c_hstore": "String",
     "c_text": "STRING",
     "c_jsonb": "STRING",
+    "c_interval": "STRING",
     "c_varchar_arr": "String",
     "c_integer_arr": "String",
     "c_date": "DATETIME",
     "c_time": "TIME",
+    "c_double": "FLOAT",
     "c_bytea": "String",
     "c_timestamptz_arr": "String",
+    "c_numeric_20_6": "NUMBER(20,6)",
+    "c_numeric_10_8": "NUMBER(10,8)",
     "c_inet": "String",
 }
-
-# Expected (lossless) mappings that pgwarehouse gets wrong
-LOSSY = "pgwarehouse maps {pg} to NUMERIC, which is NUMBER(38,0) in Snowflake: fractional values are rounded"
-WRONG_TYPE_MAPPING = [
-    pytest.param(
-        "c_interval",
-        "String",
-        id="interval",
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="'interval' starts with 'int' and is mapped to BIGINT: every non-NULL row is rejected by COPY "
-            "(values look like '1 day 02:00:00') and silently dropped by ON_ERROR=CONTINUE",
-        ),
-    ),
-    pytest.param("c_double", "FLOAT", id="double", marks=pytest.mark.xfail(strict=True, reason=LOSSY.format(pg="double precision"))),
-    pytest.param("c_numeric_20_6", "NUMBER(20,6)", id="numeric_20_6", marks=pytest.mark.xfail(strict=True, reason=LOSSY.format(pg="numeric(20,6)"))),
-    pytest.param("c_numeric_10_8", "NUMBER(10,8)", id="numeric_10_8", marks=pytest.mark.xfail(strict=True, reason=LOSSY.format(pg="numeric(10,8)"))),
-]
 
 
 def test_column_type_mapping(dqs_env, snowflake, data_dir):
     run_dqs_sync("all_types", data_dir)
 
-    columns = snowflake.columns("all_types")
-    assert {column: columns[column] for column in TYPE_MAPPING} == TYPE_MAPPING
+    assert snowflake.columns("all_types") == TYPE_MAPPING
 
 
-@pytest.mark.parametrize("column,snowflake_type", WRONG_TYPE_MAPPING)
-def test_column_type_mapping_is_lossless(dqs_env, snowflake, data_dir, column, snowflake_type):
-    run_dqs_sync("all_types", data_dir)
+@pytest.mark.parametrize(
+    "pg_type,snowflake_type",
+    [
+        ("numeric", "FLOAT"),
+        ("numeric(12)", "NUMBER(12,0)"),
+        ("real", "FLOAT"),
+        ("interval day", "STRING"),
+        ("integer", "BIGINT"),
+    ],
+)
+def test_numeric_and_interval_type_variants(pg_type, snowflake_type):
+    # Variants not used by Poka tenant tables, so not in the fixture schema
+    backend = object.__new__(snowflake_backend.SnowflakeBackend)
 
-    assert snowflake.columns("all_types")[column] == snowflake_type
+    assert backend.pg_to_sf_type(pg_type) == snowflake_type
 
 
 def test_postgres_text_formats_are_exported_verbatim(dqs_env, snowflake, data_dir):
