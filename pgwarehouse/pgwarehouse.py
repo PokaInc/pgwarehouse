@@ -297,7 +297,8 @@ class PGWarehouse(PGBackend):
         proc.wait()
 
         if proc.returncode != 0:
-            logger.error(f"Error extracting table {table}")
+            # Raise so that reload never replaces the warehouse table with partial data
+            raise RuntimeError(f"Error extracting table {table}: psql exited with status {proc.returncode}")
         logger.debug("Wrote csv files")
         logger.info(f"Done: total records written: {total_records:,} total bytes: {current_size:,}")
         return [file_suffix, total_records]

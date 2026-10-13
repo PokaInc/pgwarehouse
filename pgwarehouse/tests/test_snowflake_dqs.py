@@ -513,22 +513,26 @@ def test_failing_table_in_all_mode_fails_the_sync(dqs_env, snowflake, data_dir, 
         run_dqs_sync("all", data_dir)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A failing psql \\copy is only logged: reload then drops the Snowflake table and reloads it empty",
-)
-def test_extraction_failure_does_not_replace_the_snowflake_table(dqs_env, snowflake, data_dir, admin):
+@pytest.fixture
+def unreadable_big_table(admin):
     # A column-level grant keeps the table visible to the sync user, but SELECT * fails
     with admin.cursor() as cursor:
         cursor.execute("REVOKE SELECT ON acme.big_table FROM snowflake_agent_user")
         cursor.execute("GRANT SELECT (id) ON acme.big_table TO snowflake_agent_user")
 
-    try:
-        run_dqs_sync("big_table", data_dir)
-    except Exception:
-        pass  # failing the sync is an acceptable outcome; replacing the table is not
 
-    assert not any(s.startswith("DROP TABLE") for s in snowflake.statements_for("big_table"))
+def test_extraction_failure_fails_the_sync(dqs_env, snowflake, data_dir, unreadable_big_table):
+    with pytest.raises(RuntimeError, match="Error extracting table big_table"):
+        run_dqs_sync("big_table", data_dir)
+
+    assert snowflake.statements_for("big_table") == []
+
+
+def test_extraction_failure_in_all_mode_keeps_the_snowflake_table(dqs_env, snowflake, data_dir, unreadable_big_table):
+    run_dqs_sync("all", data_dir)
+
+    assert snowflake.statements_for("big_table") == []
+    assert snowflake.reloaded_tables() == TENANT_TABLES - {"big_table"}
 
 
 @pytest.mark.xfail(strict=True, reason="COPY INTO uses ON_ERROR=CONTINUE: rejected rows are only logged")
