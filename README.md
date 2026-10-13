@@ -236,8 +236,25 @@ Requirements:
 sudo apt install libpq-dev postgresql postgresql-contrib
 ```
 
+Install dependencies (requires [uv](https://docs.astral.sh/uv/)):
+```bash
+make install
+```
+
 Run tests:
-```poetry run python -m pytest```
+```bash
+make test
+```
+
+Or run them in Docker, without installing Postgres locally:
+```bash
+make test-docker
+```
+
+Build the sdist and wheel into `./dist` (`make build` with a local uv, or in Docker):
+```bash
+make build-docker
+```
 
 ## Limitations
 
