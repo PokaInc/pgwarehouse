@@ -117,6 +117,8 @@ class FakeCursor:
         elif copy := re.match(r"COPY INTO [\w.]+\.(\w+) FROM \S+/(\S+)", statement):
             parsed = len(self.fake.csv_rows(copy.group(1))) - 1
             errors = self.fake.copy_errors
+            if errors and "ON_ERROR=ABORT_STATEMENT" in statement:
+                raise ProgrammingError(msg=f"Numeric value 'abc' is not recognized (File '{copy.group(2)}', line 2)")
             status = "PARTIALLY_LOADED" if errors else "LOADED"
             self.rows = [(copy.group(2), status, parsed, parsed - errors, parsed, errors, "error" if errors else None)]
         return self
@@ -242,7 +244,7 @@ def test_copy_into_options(dqs_env, snowflake, data_dir):
 
     copy = snowflake.copy_statement("big_table")
     options = copy[copy.index("FILE_FORMAT") :]
-    assert options == "FILE_FORMAT = (type = csv field_optionally_enclosed_by='\\\"' SKIP_HEADER=1) ON_ERROR=CONTINUE FORCE=TRUE PURGE = TRUE"
+    assert options == "FILE_FORMAT = (type = csv field_optionally_enclosed_by='\\\"' SKIP_HEADER=1) ON_ERROR=ABORT_STATEMENT FORCE=TRUE PURGE = TRUE"
 
 
 def test_uploaded_csv_contains_every_row(dqs_env, snowflake, data_dir):
@@ -535,9 +537,8 @@ def test_extraction_failure_in_all_mode_keeps_the_snowflake_table(dqs_env, snowf
     assert snowflake.reloaded_tables() == TENANT_TABLES - {"big_table"}
 
 
-@pytest.mark.xfail(strict=True, reason="COPY INTO uses ON_ERROR=CONTINUE: rejected rows are only logged")
 def test_rejected_rows_fail_the_sync(dqs_env, snowflake, data_dir):
     snowflake.copy_errors = 1
 
-    with pytest.raises(Exception):
+    with pytest.raises(ProgrammingError, match="is not recognized"):
         run_dqs_sync("big_table", data_dir)
