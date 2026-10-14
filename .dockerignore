@@ -1,0 +1,10 @@
+.git
+.venv
+dist
+**/__pycache__
+.env
+pgwarehouse_conf.yaml
+pgw_data/
+secure_data/
+pgwarehouse/tests/output/
+*.db
